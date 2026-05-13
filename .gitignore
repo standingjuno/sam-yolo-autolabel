@@ -1,0 +1,81 @@
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Python cache/build
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+logs/
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.token
+secrets/
+credentials/
+
+# Dataset and generated outputs
+dataset/
+datasets/
+data/
+output/
+outputs/
+runs/
+results/
+images/train/
+images/val/
+labels/train/
+labels/val/
+overlays/
+masks/
+predictions/
+
+# Model weights and checkpoints
+checkpoints/
+weights/
+models/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.engine
+*.bin
+*.safetensors
+
+# Hugging Face / ML caches
+.cache/
+.huggingface/
+hf_home/
+
+# Archives and large artifacts
+*.zip
+*.tar
+*.tar.gz
+*.7z

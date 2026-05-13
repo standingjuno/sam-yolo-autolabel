@@ -1,0 +1,21 @@
+{
+  "images": "./dataset/input",
+  "out": "./dataset/output",
+  "classes": {
+    "stainless_pipe": "vertical stainless steel tube with a circular opening"
+  },
+  "val_ratio": 0.05,
+  "seed": 42,
+  "shuffle_split": false,
+  "device": "cuda",
+  "amp_dtype": "bfloat16",
+  "sam_version": "sam3.1",
+  "min_score": 0.65,
+  "min_area": 100,
+  "simplify": 0.003,
+  "max_points": 300,
+  "checkpoint_path": null,
+  "copy_mode": "copy",
+  "overwrite": true,
+  "no_save_previews": false
+}

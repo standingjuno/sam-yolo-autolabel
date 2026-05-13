@@ -1,0 +1,10 @@
+numpy>=1.26,<2
+opencv-python==4.10.0.84
+Pillow
+PyYAML
+tqdm
+huggingface_hub[cli]
+einops
+pycocotools
+triton-windows<3.7; platform_system == "Windows"
+ultralytics
