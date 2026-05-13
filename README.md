@@ -2,12 +2,6 @@
 
 SAM3/SAM3.1 텍스트 프롬프트로 이미지를 자동 세그멘테이션한 뒤, Ultralytics YOLO 세그멘테이션 데이터셋(`images/`, `labels/`, `data.yaml`)으로 내보내는 프로젝트입니다.
 
-이 문서는 아래 순서대로 따라오면 바로 실행 가능하도록 작성했습니다.
-
-1. 세팅 방법  
-2. git clone  
-3. JSON 파일 사용법
-
 ---
 
 ## 1) 세팅 방법
@@ -104,47 +98,46 @@ python -m pip install -r requirements.txt
 
 ## 2) git clone
 
-이 프로젝트는 **현재 저장소 + SAM3 원본 저장소**가 모두 필요합니다.
+이 프로젝트는 `sam3`를 submodule로 포함하는 구조를 기준으로 사용합니다.
 
-> 중요한 점: 이 저장소를 `git clone`해도 `sam3` 저장소가 자동으로 clone되지는 않습니다.  
-> 현재 저장소에는 `.gitmodules`가 없어서 submodule 자동 동기화가 설정되어 있지 않습니다.
+### 2-1. 처음 clone 받을 때 (권장)
 
-### 2-1. 현재 프로젝트 clone
-
-원격 저장소 URL이 있다면:
+아래 명령으로 clone하면 `sam3` submodule까지 한 번에 내려받습니다.
 
 ```bash
-git clone <YOUR_REPO_URL>
+git clone --recurse-submodules <YOUR_REPO_URL>
 cd sam-yolo-autolabel
 ```
 
-이미 로컬 폴더가 있다면 해당 폴더로 이동만 하면 됩니다.
+### 2-2. 이미 clone 받은 저장소라면
 
-### 2-2. SAM3 저장소 clone 및 설치
-
-`sam_yolo26_autolabel.py`는 `sam3` 패키지를 import하므로, SAM3 코드 설치가 필수입니다.
+이미 `git clone`만 해둔 상태라면, 아래 명령으로 submodule을 내려받아 동기화하세요.
 
 ```bash
-cd ..
-git clone https://github.com/facebookresearch/sam3.git
-cd sam3
-python -m pip install -e .
-cd ..
+git submodule update --init --recursive
 ```
 
-설치 확인:
+`sam3`를 최신 원격 커밋으로 올리고 싶으면:
+
+```bash
+git submodule update --remote --recursive
+```
+
+### 2-3. 파이썬 패키지 설치
+
+이 프로젝트는 내부 `sam3/` 폴더를 자동으로 인식하도록 되어 있어, 일반적으로 별도 `pip install -e ../sam3` 없이 동작합니다.  
+다만 `sam3` 자체를 독립적으로 테스트하거나 import 확인을 명시적으로 하려면 editable 설치를 추가로 해도 됩니다.
+
+옵션(선택):
+
+```bash
+python -m pip install -e ./sam3
+```
+
+설치/인식 확인:
 
 ```bash
 python -c "from sam3.model.sam3_image_processor import Sam3Processor; print('sam3 import ok')"
-```
-
-업데이트 필요 시:
-
-```bash
-cd sam3
-git pull
-python -m pip install -e .
-cd ..
 ```
 
 ---
