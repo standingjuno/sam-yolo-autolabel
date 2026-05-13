@@ -105,7 +105,7 @@ python -m pip install -r requirements.txt
 아래 명령으로 clone하면 `sam3` submodule까지 한 번에 내려받습니다.
 
 ```bash
-git clone --recurse-submodules <YOUR_REPO_URL>
+git clone --recurse-submodules https://github.com/standingjuno/sam-yolo-autolabel.git
 cd sam-yolo-autolabel
 ```
 
