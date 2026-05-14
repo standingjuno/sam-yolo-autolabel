@@ -1,19 +1,21 @@
 # sam-yolo-autolabel
 
-SAM3/SAM3.1 텍스트 프롬프트로 이미지를 자동 세그멘테이션한 뒤, Ultralytics YOLO 세그멘테이션 데이터셋(`images/`, `labels/`, `data.yaml`)으로 내보내는 프로젝트입니다.
+Prompt-based auto-labeling pipeline for creating an Ultralytics YOLO segmentation dataset with SAM3/SAM3.1.
 
----
+It reads images, segments target objects from text prompts, converts masks to YOLO polygon labels, and writes a YOLO-ready dataset with `images/`, `labels/`, and `data.yaml`.
 
-## 1) 세팅 방법
+## Features
 
-### 1-1. 사전 준비
+- Recursive input image scan
+- SAM3/SAM3.1 text-prompt segmentation
+- YOLO segmentation label export
+- Train/validation split
+- Optional QA previews in `overlays/` and `masks/`
+- Utility scripts for manual-review cleanup and train/val rebalancing
 
-- OS: Windows/Linux
-- Python: 3.12 권장
-- GPU: NVIDIA + CUDA 사용 권장 (`--device cuda`)
-- Conda 설치 권장 (가상환경 분리 목적)  
+## Setup
 
-### 1-2. Conda 환경 생성
+Create and activate a Python environment:
 
 ```bash
 conda create -n SAM3 python=3.12 -y
@@ -21,153 +23,69 @@ conda activate SAM3
 python -m pip install -U pip setuptools wheel
 ```
 
-### 1-3. PyTorch(CUDA) 설치
+Install PyTorch with CUDA:
 
 ```bash
 python -m pip install torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 --index-url https://download.pytorch.org/whl/cu128
 ```
 
-설치 확인:
-
-```bash
-nvidia-smi
-python -c "import torch; print(torch.__version__); print(torch.version.cuda); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
-```
-
-`torch.cuda.is_available()`가 `True`여야 GPU 추론이 가능합니다.
-
-### 1-4. Hugging Face 설정 (중요)
-
-SAM3.1 체크포인트는 Hugging Face의 gated model에서 내려받습니다.  
-즉, **코드 설치와 별개로 HF 권한/로그인**이 필요합니다.
-
-#### (A) 모델 접근 권한 확인
-
-아래 페이지에서 접근 상태를 확인합니다.
-
-- [https://huggingface.co/facebook/sam3.1](https://huggingface.co/facebook/sam3.1)
-
-페이지에서 `You have been granted access`가 보여야 다운로드 가능합니다.
-
-#### (B) 토큰 생성
-
-1. [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) 이동  
-2. `Create new token` 클릭  
-3. `Read` 또는 fine-grained token 생성  
-4. 권한은 공개 gated repo 읽기 권한이 포함되도록 설정
-
-#### (C) CLI 로그인
-
-```bash
-python -m pip install -U huggingface_hub
-hf auth login
-```
-
-프롬프트가 나오면:
- 
-- `Token:` 에 `hf_...` 토큰 붙여넣기
-- `Add token as git credential? [y/N]:` 는 `N` 권장
-
-로그인 확인:
-
-```bash
-hf auth whoami
-```
-
-#### (D) 보안 주의사항
-
-- 토큰(`hf_...`)을 `.txt`, `.env`, 코드 파일에 평문 저장하지 마세요.
-- 토큰이 노출되면 Hugging Face에서 즉시 revoke 후 재발급하세요.
-- `.gitignore`에 민감 파일(`.env*`) 제외 규칙을 반드시 유지하세요.
-
-### 1-5. 프로젝트 의존성 설치
-
-이 저장소 루트에서 실행:
+Install project dependencies:
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-의존성 참고:
+## Hugging Face Access
 
-- `numpy>=1.26,<2` 고정 (SAM3 호환)
-- `opencv-python==4.10.0.84` 고정
-- `triton-windows<3.7`는 Windows에서만 설치되도록 조건부로 포함됨
+SAM3.1 is a gated Hugging Face model, so access and login are required.
 
----
+1. Request or confirm access: [facebook/sam3.1](https://huggingface.co/facebook/sam3.1)
+2. Create a read token: [Hugging Face tokens](https://huggingface.co/settings/tokens)
+3. Log in:
 
-## 2) git clone
+```bash
+python -m pip install -U huggingface_hub
+hf auth login
+hf auth whoami
+```
 
-이 프로젝트는 `sam3`를 submodule로 포함하는 구조를 기준으로 사용합니다.
+Do not commit or store Hugging Face tokens in source files.
 
-### 2-1. 처음 clone 받을 때 (권장)
+## Clone
 
-아래 명령으로 clone하면 `sam3` submodule까지 한 번에 내려받습니다.
+Clone with submodules:
 
 ```bash
 git clone --recurse-submodules https://github.com/standingjuno/sam-yolo-autolabel.git
 cd sam-yolo-autolabel
 ```
 
-### 2-2. 이미 clone 받은 저장소라면
-
-이미 `git clone`만 해둔 상태라면, 아래 명령으로 submodule을 내려받아 동기화하세요.
+If the repo was already cloned without submodules:
 
 ```bash
 git submodule update --init --recursive
 ```
 
-`sam3`를 최신 원격 커밋으로 올리고 싶으면:
+## Configuration
 
-```bash
-git submodule update --remote --recursive
-```
+The default config file is `autolabel_config.json`.
 
-### 2-3. 파이썬 패키지 설치
-
-이 프로젝트는 내부 `sam3/` 폴더를 자동으로 인식하도록 되어 있어, 일반적으로 별도 `pip install -e ../sam3` 없이 동작합니다.  
-다만 `sam3` 자체를 독립적으로 테스트하거나 import 확인을 명시적으로 하려면 editable 설치를 추가로 해도 됩니다.
-
-옵션(선택):
-
-```bash
-python -m pip install -e ./sam3
-```
-
-설치/인식 확인:
-
-```bash
-python -c "from sam3.model.sam3_image_processor import Sam3Processor; print('sam3 import ok')"
-```
-
----
-
-## 3) JSON 파일 사용법
-
-이제 이 프로젝트는 `--config` JSON 한 파일로 파라미터를 관리할 수 있습니다.
-
-기본 설정 파일:
-
-- `autolabel_config.json`
-
-### 3-1. 설정 파일 구조
-
-아래는 권장 템플릿입니다.
+Example:
 
 ```json
 {
-  "images": "./dataset/input_images",
-  "out": "./dataset/output_yolo",
+  "images": "./dataset/input",
+  "out": "./dataset/output",
   "classes": {
     "stainless_pipe": "vertical stainless steel tube with a circular opening"
   },
-  "val_ratio": 0.2,
+  "val_ratio": 0.1,
   "seed": 42,
   "shuffle_split": false,
   "device": "cuda",
   "amp_dtype": "bfloat16",
   "sam_version": "sam3.1",
-  "min_score": 0.85,
+  "min_score": 0.65,
   "min_area": 100,
   "simplify": 0.003,
   "max_points": 300,
@@ -178,157 +96,42 @@ python -c "from sam3.model.sam3_image_processor import Sam3Processor; print('sam
 }
 ```
 
-### 3-2. JSON 속성 설명
+Important fields:
 
-아래는 `autolabel_config.json`의 각 속성이 의미하는 내용입니다.
+- `images`: input image folder
+- `out`: output YOLO dataset folder
+- `classes`: class name to SAM prompt mapping
+- `val_ratio`: validation split ratio
+- `device`: `cuda` or `cpu`
+- `min_score`: SAM score threshold
+- `no_save_previews`: skip `overlays/` and `masks/` if set to `true`
 
-- `images`
-  - 입력 이미지 루트 폴더 경로입니다.
-  - 하위 폴더까지 재귀적으로 탐색하며 이미지 파일(`.jpg`, `.png`, `.bmp`, `.webp`, `.tif`, `.tiff`)을 읽습니다.
-  - 상대 경로를 쓰면 `autolabel_config.json` 파일 위치 기준으로 해석됩니다.
+## Run Auto-Labeling
 
-- `out`
-  - YOLO 데이터셋 출력 폴더입니다.
-  - 실행 후 `images/`, `labels/`, `data.yaml`(및 선택적으로 `overlays/`, `masks/`)가 생성됩니다.
-
-- `classes`
-  - 클래스와 프롬프트를 정의하는 핵심 필드입니다.
-  - 객체(dict) 또는 리스트(list) 형식을 지원합니다.
-  - 문자열 경로(`"./classes_prompt.json"`)로 지정해서 외부 파일을 참조할 수도 있습니다.
-
-- `val_ratio` (기본 `0.2`)
-  - 검증 데이터 비율입니다.
-  - `0 <= val_ratio < 1` 범위여야 합니다.
-  - 예: `0.2`면 전체의 20%를 `val`로 분할합니다.
-
-- `seed` (기본 `42`)
-  - 분할 셔플 시 사용되는 랜덤 시드입니다.
-  - 같은 시드와 같은 입력이면 동일한 분할 결과를 재현할 수 있습니다.
-
-- `shuffle_split` (기본 `false`)
-  - `true`면 분할 전에 이미지를 랜덤 셔플합니다.
-  - `false`면 파일명을 자연 정렬한 순서로 분할합니다.
-
-- `device` (기본 `"cuda"`)
-  - 추론 디바이스를 지정합니다.
-  - 허용값: `"cuda"`, `"cpu"`.
-  - `cuda` 선택 시 PyTorch CUDA 환경이 정상이어야 합니다.
-
-- `amp_dtype` (기본 `"bfloat16"`)
-  - CUDA 자동 mixed precision dtype입니다.
-  - 허용값: `"none"`, `"float16"`, `"bfloat16"`.
-  - 구형 GPU에서 BF16 문제가 있으면 `"float16"`을 사용하세요.
-
-- `sam_version` (기본 `"sam3.1"`)
-  - `checkpoint_path`를 지정하지 않았을 때 Hugging Face에서 받을 SAM 계열 버전입니다.
-  - 허용값: `"sam3.1"`, `"sam3"`.
-
-- `min_score` (기본 `0.85`)
-  - SAM이 반환한 마스크 score의 최소 임계값입니다.
-  - 값이 높을수록 보수적으로 라벨이 생성됩니다.
-
-- `min_area` (기본 `100`)
-  - 폴리곤으로 변환할 최소 마스크 면적(픽셀)입니다.
-  - 작은 노이즈 영역을 제거할 때 사용합니다.
-
-- `simplify` (기본 `0.003`)
-  - 폴리곤 단순화 계수입니다.
-  - `epsilon = simplify * contour_perimeter`로 계산되어 점 개수를 줄입니다.
-  - `0`이면 단순화를 적용하지 않습니다.
-
-- `max_points` (기본 `300`)
-  - 객체당 폴리곤 최대 점 개수입니다.
-  - 단순화 후에도 점이 많으면 균등 샘플링으로 제한합니다.
-
-- `checkpoint_path` (기본 `null`)
-  - 로컬 체크포인트 파일 경로를 직접 지정할 때 사용합니다.
-  - `null`이면 `sam_version` 기준으로 Hugging Face 다운로드를 사용합니다.
-
-- `copy_mode` (기본 `"copy"`)
-  - 원본 이미지를 출력셋으로 옮기는 방식입니다.
-  - 허용값: `"copy"`, `"link"`.
-  - `"link"`는 하드링크를 시도하고 실패하면 자동으로 복사합니다.
-
-- `overwrite` (기본 `false`)
-  - 출력 폴더가 이미 존재하고 비어 있지 않을 때 덮어쓰기 허용 여부입니다.
-  - `false`면 안전하게 에러를 내고 중단합니다.
-
-- `no_save_previews` (기본 `false`)
-  - `true`면 `overlays/`, `masks/` 미리보기 이미지를 저장하지 않습니다.
-  - 디스크 사용량/속도를 줄이고 싶을 때 유용합니다.
-
-### 3-3. classes 작성 규칙
-
-`classes`는 아래 2가지 형식을 지원합니다.
-
-#### 형식 A: 객체(dict) 방식 (간단, 권장)
-
-```json
-{
-  "classes": {
-    "dome_nut": "gray round object with a central circular hole",
-    "hex_nut": "hexagonal metal nut"
-  }
-}
-```
-
-- key: YOLO 클래스 이름
-- value: SAM 텍스트 프롬프트
-- 클래스 ID는 0부터 자동 할당
-
-#### 형식 B: 리스트 방식 (ID 직접 지정 가능)
-
-```json
-{
-  "classes": [
-    { "id": 0, "name": "dome_nut", "prompt": "gray round object with a central circular hole" },
-    { "id": 1, "name": "hex_nut", "prompt": "hexagonal metal nut" }
-  ]
-}
-```
-
-- `id`는 0부터 연속이어야 함
-- 연속이 아니면 오류 발생
-
-### 3-4. 기존 `classes_prompt.json` 통합
-
-기존 `classes_prompt.json` 내용은 `autolabel_config.json`의 `classes`로 통합해서 사용하면 됩니다.  
-즉, 앞으로는 `--classes classes_prompt.json` 없이도 실행 가능합니다.
-
-### 3-5. 실행 방법
-
-#### 기본 실행 (config만 사용)
+Run with the config file:
 
 ```bash
 python sam_yolo26_autolabel.py --config autolabel_config.json
 ```
 
-#### CLI로 일부 값 덮어쓰기
-
-CLI 인자가 config보다 우선합니다.
+Override config values from the command line:
 
 ```bash
 python sam_yolo26_autolabel.py --config autolabel_config.json --out ./dataset/output_yolo_v2 --device cpu
 ```
 
-#### 클래스만 별도 파일로 분리하고 싶을 때
+Useful examples:
 
-`config`에서 `classes`를 파일 경로 문자열로 지정할 수도 있습니다.
-
-```json
-{
-  "images": "./dataset/input_images",
-  "out": "./dataset/output_yolo",
-  "classes": "./classes_prompt.json"
-}
+```bash
+python sam_yolo26_autolabel.py --config autolabel_config.json --shuffle-split --seed 42
+python sam_yolo26_autolabel.py --config autolabel_config.json --no-save-previews
+python sam_yolo26_autolabel.py --config autolabel_config.json --amp-dtype float16
 ```
 
----
-
-## 출력 결과 구조
+## Output Layout
 
 ```text
-output_dataset/
+dataset/output/
   images/
     train/
     val/
@@ -344,110 +147,73 @@ output_dataset/
   data.yaml
 ```
 
-- `images/`, `labels/`, `data.yaml`는 YOLO 학습에 필수
-- `overlays/`, `masks/`는 품질 점검(QA)용
+`images/`, `labels/`, and `data.yaml` are required for Ultralytics YOLO training. `overlays/` and `masks/` are QA artifacts.
 
----
+Example YOLO training command:
 
-## 오토라벨링 결과 수동 검수 후 데이터 정리
+```bash
+yolo segment train model=yolo26n-seg.pt data=dataset/output/data.yaml
+```
 
-`overlays/train` 이미지를 확인하면서 오토라벨링이 잘못된 샘플을 직접 삭제했다면, 실제 학습에 쓰이는 `images/train`과 `labels/train`에서도 같은 샘플을 제거해야 합니다.
+## Utility Scripts
 
-이때 `prune_dataset_by_overlays.py`를 사용하면 `dataset/output/overlays/train`에 남아 있는 파일명을 기준으로, 같은 stem이 없는 이미지와 라벨 파일을 삭제할 수 있습니다. 확장자는 달라도 파일명 stem으로 비교합니다.
+### Sync Images and Labels After Overlay Review
 
-예:
+If you manually delete bad samples from `overlays/train`, run this script to remove the matching files from `images/train` and `labels/train`.
 
-- `overlays/train/pipe_260505_0001.jpg`
-- `images/train/pipe_260505_0001.png`
-- `labels/train/pipe_260505_0001.txt`
-
-먼저 삭제 대상을 확인합니다.
+Preview only:
 
 ```bash
 python prune_dataset_by_overlays.py
 ```
 
-실제로 삭제하려면 `--apply`를 붙여 실행합니다.
+Apply deletion:
 
 ```bash
 python prune_dataset_by_overlays.py --apply
 ```
 
-다른 split을 정리하려면 `--split`을 사용할 수 있습니다.
+Options:
 
 ```bash
 python prune_dataset_by_overlays.py --split val --apply
-```
-
-다른 출력 폴더를 기준으로 정리하려면 `--output-root`를 지정합니다.
-
-```bash
 python prune_dataset_by_overlays.py --output-root ./dataset/output_yolo --apply
 ```
 
-`--apply` 없이 실행하면 파일을 삭제하지 않고 삭제 예정 목록만 출력합니다.
+### Move Train Samples to Val
 
----
+If `images/val` and `labels/val` are empty, move a small paired subset from train to val.
 
-## train 데이터 일부를 val로 이동
+For a single-domain dataset around 10k images, `5%` validation is usually a good starting point.
 
-`images/val`과 `labels/val`이 비어 있다면 `move_train_to_val.py`를 사용해 `train` 데이터 일부를 `val`로 옮길 수 있습니다. 이미지와 라벨은 파일명 stem 기준으로 한 쌍으로 선택되어 함께 이동합니다.
-
-현재처럼 약 1만 장 규모의 단일 도메인 데이터셋에서는 validation 비율을 5% 정도로 두는 것을 권장합니다. 10%도 가능하지만 학습 데이터가 그만큼 줄어드니, 조명/각도/배경 변화가 아주 크지 않다면 5%로도 충분한 편입니다.
-
-먼저 이동 대상을 확인합니다.
+Preview only:
 
 ```bash
 python move_train_to_val.py --ratio 0.05
 ```
 
-실제로 이동하려면 `--apply`를 붙여 실행합니다.
+Apply move:
 
 ```bash
 python move_train_to_val.py --ratio 0.05 --apply
 ```
 
-선택을 재현하려면 같은 `--seed` 값을 사용합니다.
+Options:
 
 ```bash
 python move_train_to_val.py --ratio 0.05 --seed 42 --apply
-```
-
-다른 출력 폴더를 기준으로 정리하려면 `--output-root`를 지정합니다.
-
-```bash
 python move_train_to_val.py --output-root ./dataset/output_yolo --ratio 0.05 --apply
 ```
 
-참고로 `--ratio 0.05`는 train/val 쌍 중 5%를 val로 옮긴다는 뜻입니다. 예를 들어 train에 10,997쌍이 있으면 약 550쌍이 val로 이동합니다.
+## Notes
 
----
+- Run utility scripts without `--apply` first to preview changes.
+- `data.yaml` is generated by `sam_yolo26_autolabel.py`.
+- If `data.yaml` is missing, create it with `path`, `train`, `val`, and `names` fields before YOLO training.
+- Keep generated datasets, model weights, and tokens out of Git.
 
-## 자주 쓰는 실행 예시
+## References
 
-### 랜덤 분할 사용
-
-```bash
-python sam_yolo26_autolabel.py --config autolabel_config.json --shuffle-split --seed 42
-```
-
-### 미리보기 저장 끄기
-
-```bash
-python sam_yolo26_autolabel.py --config autolabel_config.json --no-save-previews
-```
-
-### FP16으로 실행
-
-```bash
-python sam_yolo26_autolabel.py --config autolabel_config.json --amp-dtype float16
-```
-
----
-
-## 참고 링크
-
-- SAM3 GitHub: [https://github.com/facebookresearch/sam3](https://github.com/facebookresearch/sam3)
-- SAM3.1 Hugging Face: [https://huggingface.co/facebook/sam3.1](https://huggingface.co/facebook/sam3.1)
-- Hugging Face 토큰 설정: [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
-- Ultralytics YOLO 문서: [https://docs.ultralytics.com/](https://docs.ultralytics.com/)
+- [SAM3 GitHub](https://github.com/facebookresearch/sam3)
+- [SAM3.1 on Hugging Face](https://huggingface.co/facebook/sam3.1)
+- [Ultralytics YOLO Docs](https://docs.ultralytics.com/)
