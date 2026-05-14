@@ -4,7 +4,7 @@
   "classes": {
     "stainless_pipe": "vertical stainless steel tube with a circular opening"
   },
-  "val_ratio": 0.05,
+  "val_ratio": 0.1,
   "seed": 42,
   "shuffle_split": false,
   "device": "cuda",

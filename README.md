@@ -8,7 +8,7 @@ SAM3/SAM3.1 텍스트 프롬프트로 이미지를 자동 세그멘테이션한 
 
 ### 1-1. 사전 준비
 
-- OS: Windows/macOS/Linux
+- OS: Windows/Linux
 - Python: 3.12 권장
 - GPU: NVIDIA + CUDA 사용 권장 (`--device cuda`)
 - Conda 설치 권장 (가상환경 분리 목적)  
@@ -64,7 +64,7 @@ hf auth login
 ```
 
 프롬프트가 나오면:
-
+ 
 - `Token:` 에 `hf_...` 토큰 붙여넣기
 - `Add token as git credential? [y/N]:` 는 `N` 권장
 
@@ -78,7 +78,7 @@ hf auth whoami
 
 - 토큰(`hf_...`)을 `.txt`, `.env`, 코드 파일에 평문 저장하지 마세요.
 - 토큰이 노출되면 Hugging Face에서 즉시 revoke 후 재발급하세요.
-- `.gitignore`에 민감 파일(`SAM.txt`, `.env*`) 제외 규칙을 반드시 유지하세요.
+- `.gitignore`에 민감 파일(`.env*`) 제외 규칙을 반드시 유지하세요.
 
 ### 1-5. 프로젝트 의존성 설치
 
@@ -349,6 +349,80 @@ output_dataset/
 
 ---
 
+## 오토라벨링 결과 수동 검수 후 데이터 정리
+
+`overlays/train` 이미지를 확인하면서 오토라벨링이 잘못된 샘플을 직접 삭제했다면, 실제 학습에 쓰이는 `images/train`과 `labels/train`에서도 같은 샘플을 제거해야 합니다.
+
+이때 `prune_dataset_by_overlays.py`를 사용하면 `dataset/output/overlays/train`에 남아 있는 파일명을 기준으로, 같은 stem이 없는 이미지와 라벨 파일을 삭제할 수 있습니다. 확장자는 달라도 파일명 stem으로 비교합니다.
+
+예:
+
+- `overlays/train/pipe_260505_0001.jpg`
+- `images/train/pipe_260505_0001.png`
+- `labels/train/pipe_260505_0001.txt`
+
+먼저 삭제 대상을 확인합니다.
+
+```bash
+python prune_dataset_by_overlays.py
+```
+
+실제로 삭제하려면 `--apply`를 붙여 실행합니다.
+
+```bash
+python prune_dataset_by_overlays.py --apply
+```
+
+다른 split을 정리하려면 `--split`을 사용할 수 있습니다.
+
+```bash
+python prune_dataset_by_overlays.py --split val --apply
+```
+
+다른 출력 폴더를 기준으로 정리하려면 `--output-root`를 지정합니다.
+
+```bash
+python prune_dataset_by_overlays.py --output-root ./dataset/output_yolo --apply
+```
+
+`--apply` 없이 실행하면 파일을 삭제하지 않고 삭제 예정 목록만 출력합니다.
+
+---
+
+## train 데이터 일부를 val로 이동
+
+`images/val`과 `labels/val`이 비어 있다면 `move_train_to_val.py`를 사용해 `train` 데이터 일부를 `val`로 옮길 수 있습니다. 이미지와 라벨은 파일명 stem 기준으로 한 쌍으로 선택되어 함께 이동합니다.
+
+현재처럼 약 1만 장 규모의 단일 도메인 데이터셋에서는 validation 비율을 5% 정도로 두는 것을 권장합니다. 10%도 가능하지만 학습 데이터가 그만큼 줄어드니, 조명/각도/배경 변화가 아주 크지 않다면 5%로도 충분한 편입니다.
+
+먼저 이동 대상을 확인합니다.
+
+```bash
+python move_train_to_val.py --ratio 0.05
+```
+
+실제로 이동하려면 `--apply`를 붙여 실행합니다.
+
+```bash
+python move_train_to_val.py --ratio 0.05 --apply
+```
+
+선택을 재현하려면 같은 `--seed` 값을 사용합니다.
+
+```bash
+python move_train_to_val.py --ratio 0.05 --seed 42 --apply
+```
+
+다른 출력 폴더를 기준으로 정리하려면 `--output-root`를 지정합니다.
+
+```bash
+python move_train_to_val.py --output-root ./dataset/output_yolo --ratio 0.05 --apply
+```
+
+참고로 `--ratio 0.05`는 train/val 쌍 중 5%를 val로 옮긴다는 뜻입니다. 예를 들어 train에 10,997쌍이 있으면 약 550쌍이 val로 이동합니다.
+
+---
+
 ## 자주 쓰는 실행 예시
 
 ### 랜덤 분할 사용
@@ -367,49 +441,6 @@ python sam_yolo26_autolabel.py --config autolabel_config.json --no-save-previews
 
 ```bash
 python sam_yolo26_autolabel.py --config autolabel_config.json --amp-dtype float16
-```
-
----
-
-## 트러블슈팅
-
-### `ModuleNotFoundError: No module named 'sam3'`
-
-```bash
-cd ../sam3
-python -m pip install -e .
-```
-
-### `CUDA was requested, but torch.cuda.is_available() is false`
-
-```bash
-nvidia-smi
-python -c "import torch; print(torch.version.cuda); print(torch.cuda.is_available())"
-```
-
-CPU로 우선 실행하려면:
-
-```bash
-python sam_yolo26_autolabel.py --config autolabel_config.json --device cpu
-```
-
-### Hugging Face 인증 문제 (`403`, gated access 에러)
-
-1. 모델 접근 권한 확인: [https://huggingface.co/facebook/sam3.1](https://huggingface.co/facebook/sam3.1)  
-2. 토큰 재생성: [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)  
-3. 재로그인:
-
-```bash
-hf auth logout
-hf auth login
-hf auth whoami
-```
-
-### NumPy 관련 충돌
-
-```bash
-python -m pip uninstall numpy opencv-python -y
-python -m pip install "numpy>=1.26,<2" "opencv-python==4.10.0.84"
 ```
 
 ---
